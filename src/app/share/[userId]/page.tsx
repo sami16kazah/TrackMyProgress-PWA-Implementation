@@ -29,14 +29,15 @@ export default function SharedMapPage({ params }: { params: Promise<{ userId: st
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [markers, setMarkers] = useState<any[]>([]);
   const [areas, setAreas] = useState<any[]>([]);
+  const [track, setTrack] = useState<any>(null);
   const [error, setError] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      // Need a public endpoint to fetch data by userId
-      const [markersRes, areasRes] = await Promise.all([
+      const [markersRes, areasRes, trackRes] = await Promise.all([
         fetch(`/api/share/${userId}/markers`),
         fetch(`/api/share/${userId}/areas`),
+        fetch(`/api/share/${userId}/tracks`),
       ]);
       
       if (!markersRes.ok || !areasRes.ok) {
@@ -46,9 +47,11 @@ export default function SharedMapPage({ params }: { params: Promise<{ userId: st
 
       const markersData = await markersRes.json();
       const areasData = await areasRes.json();
+      const trackData = trackRes.ok ? await trackRes.json() : null;
       
       if (markersData.markers) setMarkers(markersData.markers);
       if (areasData.areas) setAreas(areasData.areas);
+      if (trackData?.track) setTrack(trackData.track.geojson);
     } catch (err) {
       console.error("Failed to fetch shared data", err);
       setError(true);
@@ -84,6 +87,57 @@ export default function SharedMapPage({ params }: { params: Promise<{ userId: st
   }
 
   const centerMap = markers.length > 0 ? { lat: markers[0].lat, lng: markers[0].lng } : defaultCenter;
+
+  const renderTrack = () => {
+    if (!track) return null;
+    
+    const features = track.type === 'FeatureCollection' 
+      ? track.features 
+      : [track];
+
+    return features.map((feature: any, idx: number) => {
+      if (feature.geometry.type === 'Polygon') {
+        const paths = feature.geometry.coordinates[0].map((coord: any) => ({
+          lat: coord[1],
+          lng: coord[0]
+        }));
+        return (
+          <Polygon
+            key={`track-${idx}`}
+            paths={paths}
+            options={{
+              fillColor: "#4ade80",
+              fillOpacity: 0.5,
+              strokeColor: "#16a34a",
+              strokeWeight: 1,
+              clickable: false,
+            }}
+          />
+        );
+      } else if (feature.geometry.type === 'MultiPolygon') {
+        return feature.geometry.coordinates.map((poly: any, pIdx: number) => {
+          const paths = poly[0].map((coord: any) => ({
+            lat: coord[1],
+            lng: coord[0]
+          }));
+          return (
+            <Polygon
+              key={`track-${idx}-${pIdx}`}
+              paths={paths}
+              options={{
+                fillColor: "#4ade80",
+                fillOpacity: 0.5,
+                strokeColor: "#16a34a",
+                strokeWeight: 1,
+                clickable: false,
+              }}
+            />
+          );
+        });
+      }
+      return null;
+    });
+  };
 
   return (
     <Box sx={{ height: "100vh", width: "100%", position: "relative" }}>
@@ -127,6 +181,8 @@ export default function SharedMapPage({ params }: { params: Promise<{ userId: st
             />
           );
         })}
+
+        {renderTrack()}
       </GoogleMap>
     </Box>
   );

@@ -6,6 +6,8 @@ import { Box, CircularProgress, IconButton, Button, Typography, Paper } from "@m
 import MyLocationIcon from "@mui/icons-material/MyLocation";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
+import ShareIcon from "@mui/icons-material/Share";
+import { useSession } from "next-auth/react";
 import * as turf from "@turf/turf";
 
 const containerStyle = {
@@ -21,6 +23,7 @@ const defaultCenter = {
 const libraries: ("drawing" | "geometry" | "places" | "visualization")[] = ["drawing"];
 
 export default function TrackerMap() {
+  const { data: session } = useSession();
   const { isLoaded } = useJsApiLoader({
     id: "google-map-script",
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
@@ -41,6 +44,43 @@ export default function TrackerMap() {
   const onMapLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
   }, []);
+
+  // Fetch existing track on mount
+  useEffect(() => {
+    const fetchTrack = async () => {
+      try {
+        const res = await fetch("/api/tracks");
+        const data = await res.json();
+        if (data.track) {
+          setCoverageGeojson(data.track.geojson);
+        }
+      } catch (e) {
+        console.error("Failed to fetch track", e);
+      }
+    };
+    fetchTrack();
+  }, []);
+
+  // Auto-save effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isTracking && coverageGeojson) {
+      interval = setInterval(async () => {
+        try {
+          await fetch("/api/tracks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ geojson: coverageGeojson }),
+          });
+        } catch (e) {
+          console.error("Failed to auto-save track", e);
+        }
+      }, 10000); // Save every 10 seconds
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isTracking, coverageGeojson]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -96,6 +136,17 @@ export default function TrackerMap() {
     if (userLocation && map) {
       map.panTo(userLocation);
       map.setZoom(17);
+    }
+  };
+
+  const handleShare = () => {
+    if (session?.user) {
+      const userId = (session.user as any).id;
+      const shareUrl = `${window.location.origin}/share/${userId}`;
+      navigator.clipboard.writeText(shareUrl);
+      alert("Live Share Link Copied to Clipboard!");
+    } else {
+      alert("You must be logged in to share.");
     }
   };
 
@@ -243,6 +294,13 @@ export default function TrackerMap() {
 
       {/* Floating Buttons */}
       <Box sx={{ position: "absolute", top: 16, left: 16, display: "flex", flexDirection: "column", gap: 1 }}>
+        <IconButton
+          onClick={handleShare}
+          sx={{ backgroundColor: "white", boxShadow: 3, "&:hover": { backgroundColor: "#f3f4f6" }, p: 1.5 }}
+        >
+          <ShareIcon color="secondary" />
+        </IconButton>
+
         <IconButton
           onClick={centerOnUser}
           sx={{ backgroundColor: "white", boxShadow: 3, "&:hover": { backgroundColor: "#f3f4f6" }, p: 1.5 }}
