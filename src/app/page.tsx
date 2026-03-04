@@ -35,7 +35,7 @@ export default function Home() {
   }
 
   return (
-    <Box sx={{ height: "100vh", width: "100%", position: "relative" }}>
+    <Box sx={{ height: "calc(100vh - 56px)", width: "100%", position: "relative" }}>
       <LeafletMap />
 
       {/* Floating Action Button for adding Markers */}
@@ -45,7 +45,7 @@ export default function Home() {
         sx={{
           position: "absolute",
           bottom: 32,
-          right: 32,
+          left: 32,
           zIndex: 1000,
         }}
       >

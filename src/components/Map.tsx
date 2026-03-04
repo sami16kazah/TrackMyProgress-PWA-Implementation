@@ -38,10 +38,12 @@ export default function AppMap() {
   const [markerSheetOpen, setMarkerSheetOpen] = useState(false);
   const [selectedLat, setSelectedLat] = useState<number | null>(null);
   const [selectedLng, setSelectedLng] = useState<number | null>(null);
+  const [selectedMarker, setSelectedMarker] = useState<any | null>(null);
 
   // Area Sheet State
   const [areaSheetOpen, setAreaSheetOpen] = useState(false);
   const [selectedCoordinates, setSelectedCoordinates] = useState<number[][] | null>(null);
+  const [selectedArea, setSelectedArea] = useState<any | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -83,7 +85,46 @@ export default function AppMap() {
     if (e.latLng) {
       setSelectedLat(e.latLng.lat());
       setSelectedLng(e.latLng.lng());
+      setSelectedMarker(null);
       setMarkerSheetOpen(true);
+    }
+  };
+
+  // Interaction Handlers
+  const handleMarkerClick = (marker: any) => {
+    setSelectedLat(null);
+    setSelectedLng(null);
+    setSelectedMarker(marker);
+    setMarkerSheetOpen(true);
+  };
+
+  const handleAreaClick = (area: any) => {
+    setSelectedCoordinates(null);
+    setSelectedArea(area);
+    setAreaSheetOpen(true);
+  };
+
+  const handleMarkerDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/markers/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setMarkerSheetOpen(false);
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Failed to delete marker", error);
+    }
+  };
+
+  const handleAreaDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/areas/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setAreaSheetOpen(false);
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Failed to delete area", error);
     }
   };
 
@@ -118,6 +159,7 @@ export default function AppMap() {
     
     const coordinates = path.map(p => [p.lat, p.lng]);
     setSelectedCoordinates(coordinates);
+    setSelectedArea(null);
     setAreaSheetOpen(true);
     
     // Remove the unsaved polygon from the map since we will render it via state when saved
@@ -190,6 +232,7 @@ export default function AppMap() {
             key={marker._id} 
             position={{ lat: marker.lat, lng: marker.lng }} 
             title={marker.type}
+            onClick={() => handleMarkerClick(marker)}
           />
         ))}
 
@@ -203,12 +246,13 @@ export default function AppMap() {
             <Polygon
               key={area._id}
               paths={paths}
+              onClick={() => handleAreaClick(area)}
               options={{
                 fillColor: "#3b82f6",
-                fillOpacity: 0.3,
+                fillOpacity: 0.45,
                 strokeColor: "#2563eb",
                 strokeWeight: 2,
-                clickable: false,
+                clickable: true,
               }}
             />
           );
@@ -225,19 +269,19 @@ export default function AppMap() {
               ],
             },
             polygonOptions: {
-              fillColor: "#3b82f6",
-              fillOpacity: 0.3,
-              strokeColor: "#2563eb",
-              strokeWeight: 2,
+              fillColor: "#ef4444", // Red-500 for active drawing
+              fillOpacity: 0.6,
+              strokeColor: "#dc2626", // Red-600
+              strokeWeight: 3,
               clickable: false,
-              editable: false,
+              editable: true,
               zIndex: 1,
             },
           }}
         />
       </GoogleMap>
 
-      <Box sx={{ position: "absolute", top: 16, right: 16, display: "flex", flexDirection: "column", gap: 1 }}>
+      <Box sx={{ position: "absolute", top: 16, left: 16, display: "flex", flexDirection: "column", gap: 1.5 }}>
         <IconButton
           onClick={() => {
             if (session?.user) {
@@ -251,8 +295,9 @@ export default function AppMap() {
           }}
           sx={{
             backgroundColor: "white",
-            boxShadow: 2,
+            boxShadow: 3,
             "&:hover": { backgroundColor: "#f3f4f6" },
+            p: 1.5,
           }}
         >
           <ShareIcon color="secondary" />
@@ -262,8 +307,9 @@ export default function AppMap() {
           onClick={centerOnUser}
           sx={{
             backgroundColor: "white",
-            boxShadow: 2,
+            boxShadow: 3,
             "&:hover": { backgroundColor: "#f3f4f6" },
+            p: 1.5,
           }}
         >
           <MyLocationIcon color="primary" />
@@ -274,15 +320,19 @@ export default function AppMap() {
         open={markerSheetOpen}
         onClose={() => setMarkerSheetOpen(false)}
         onSubmit={handleMarkerSubmit}
+        onDelete={handleMarkerDelete}
         lat={selectedLat}
         lng={selectedLng}
+        marker={selectedMarker}
       />
 
       <AreaSheet
         open={areaSheetOpen}
         onClose={() => setAreaSheetOpen(false)}
         onSubmit={handleAreaSubmit}
+        onDelete={handleAreaDelete}
         coordinates={selectedCoordinates}
+        area={selectedArea}
       />
     </Box>
   );
